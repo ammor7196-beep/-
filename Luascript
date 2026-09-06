@@ -6,7 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 
 -- === АВТО-УДАЛЕНИЕ СТАРОЙ КОПИИ ===
-local scriptName = "DeltaUniversalBackflip_v5"
+local scriptName = "DeltaUniversalBackflip_v6"
 local targetGuiParent = player:FindFirstChild("PlayerGui")
 pcall(function()
     targetGuiParent = (typeof(gethui) == "function" and gethui()) or CoreGui 
@@ -53,7 +53,7 @@ Title.Size = UDim2.new(1, -30, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Text = "Universal Backflip"
+Title.Text = "Full Backflip Fix"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -134,10 +134,9 @@ CloseBtn.Activated:Connect(function()
     OpenBtn.Visible = true
 end)
 
--- Флаг, чтобы не делать двойное сальто во время выполнения
 local isFlipping = false
 
--- Функция физического сальто (работает на R6, R15 и вообще везде)
+-- Функция полноценного сальто без помех от физики игры
 local function doBackflip()
     if isFlipping then return end
     local character = player.Character
@@ -147,23 +146,35 @@ local function doBackflip()
     if not humanoid or not hrp then return end
 
     isFlipping = true
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     
-    -- Небольшой подброс вверх
-    hrp.Velocity = Vector3.new(hrp.Velocity.X, 45, hrp.Velocity.Z)
+    -- Временно отключаем штатный контроллер баланса, чтобы игра не мешала крутиться
+    humanoid.PlatformStand = true
+    hrp.Velocity = Vector3.new(hrp.Velocity.X, 42, hrp.Velocity.Z)
 
-    local duration = 0.55 -- Длительность сальто в секундах
+    local duration = 0.5 -- Время выполнения сальто
     local elapsed = 0
-    
+    local totalRotation = 0
+    local targetRotation = 360
+
     local connection
     connection = RunService.RenderStepped:Connect(function(dt)
         elapsed = elapsed + dt
+        local stepAngle = (dt / duration) * targetRotation
+        totalRotation = totalRotation + stepAngle
+        
         if elapsed < duration then
-            -- Плавный поворот на 360 градусов по оси X за время сальто
-            local angle = (dt / duration) * 360
-            hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(angle), 0, 0)
+            -- Крутим персонажа назад по оси X
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(-stepAngle), 0, 0)
         else
+            -- Доворачиваем точно до ровного положения, чтобы не упасть набок
+            local excess = totalRotation - targetRotation
+            if excess > 0 then
+                hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(excess), 0, 0)
+            end
+            
             connection:Disconnect()
+            -- Возвращаем нормальное состояние физики
+            humanoid.PlatformStand = false
             isFlipping = false
         end
     end)
