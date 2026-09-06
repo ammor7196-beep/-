@@ -1,0 +1,204 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+-- === АВТО-УДАЛЕНИЕ СТАРОЙ КОПИИ ===
+local scriptName = "DeltaBackflipGui_v1"
+local targetGuiParent = player:FindFirstChild("PlayerGui")
+pcall(function()
+    targetGuiParent = (typeof(gethui) == "function" and gethui()) or CoreGui 
+end)
+
+if targetGuiParent:FindFirstChild(scriptName) then
+    targetGuiParent[scriptName]:Destroy()
+end
+
+-- ID анимаций бэкфлипа (сальто назад) в Roblox
+-- Пробуем несколько популярных рабочих ID, если один заблокирован или не работает
+local backflipIds = {
+    "rbxassetid://10677242429", -- Популярный бэкфлип
+    "rbxassetid://7489467642",  -- Альтернативный вариант
+    "rbxassetid://3337994109"   -- Классический флип
+}
+
+local currentAnimTrack = nil
+
+-- === ИНТЕРФЕЙС (GUI) ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = scriptName
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = targetGuiParent
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 50, 0, 50)
+OpenBtn.Position = UDim2.new(0, 10, 0, 130)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Text = "🤸"
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.TextSize = 24
+OpenBtn.Parent = ScreenGui
+
+local OpenBtnCorner = Instance.new("UICorner")
+OpenBtnCorner.CornerRadius = UDim.new(1, 0)
+OpenBtnCorner.Parent = OpenBtn
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 220, 0, 190)
+MainFrame.Position = UDim2.new(0, 70, 0, 130)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 8)
+FrameCorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 30)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "Backflip Animation"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseBtn.Text = "X"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = MainFrame
+
+local function createButton(text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = UDim2.new(0.05, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.Parent = MainFrame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    
+    return btn
+end
+
+local FlipBtn = createButton("Сделать Сальто 🤸", 40)
+FlipBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+
+local KeybindBtn = createButton("Бинд на Пробел: ВЫКЛ", 85)
+
+local ExitBtn = createButton("Выгрузить меню", 130)
+ExitBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+
+-- Перетаскивание меню
+local function makeDraggable(gui)
+    local dragging, dragInput, dragStart, startPos
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(MainFrame)
+makeDraggable(OpenBtn)
+
+OpenBtn.Activated:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+CloseBtn.Activated:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+-- Функция выполнения сальто
+local function doBackflip()
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return end
+
+    -- Если уже играет анимация, не спамим
+    if currentAnimTrack and currentAnimTrack.IsPlaying then return end
+
+    local anim = Instance.new("Animation")
+    
+    -- Перебираем ID, пока какой-нибудь не запустится
+    for _, id in ipairs(backflipIds) do
+        anim.AnimationId = id
+        local success, err = pcall(function()
+            local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+            currentAnimTrack = animator:LoadAnimation(anim)
+            currentAnimTrack.Priority = Enum.AnimationPriority.Action4
+            currentAnimTrack:Play()
+        end)
+        if success then break end
+    end
+
+    -- Опционально: легкий подброс вверх во время сальто для красоты, если персонаж на земле
+    if humanoid.FloorMaterial ~= Enum.Material.Air then
+        hrp.Velocity = Vector3.new(hrp.Velocity.X, 35, hrp.Velocity.Z)
+    end
+end
+
+FlipBtn.Activated:Connect(function()
+    doBackflip()
+end)
+
+-- Настройка бинда на прыжок (пробел)
+local keybindEnabled = false
+KeybindBtn.Activated:Connect(function()
+    keybindEnabled = not keybindEnabled
+    if keybindEnabled then
+        KeybindBtn.Text = "Бинд на Прыжок: ВКЛ"
+        KeybindBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        KeybindBtn.Text = "Бинд на Прыжок: ВЫКЛ"
+        KeybindBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if keybindEnabled then
+        doBackflip()
+    end
+end)
+
+ExitBtn.Activated:Connect(function()
+    if currentAnimTrack then currentAnimTrack:Stop() end
+    ScreenGui:Destroy()
+end)
