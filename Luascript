@@ -1,11 +1,12 @@
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
 -- === АВТО-УДАЛЕНИЕ СТАРОЙ КОПИИ ===
-local scriptName = "DeltaSyncedBackflip"
+local scriptName = "DeltaFixedBackflip_v7"
 local targetGuiParent = player:FindFirstChild("PlayerGui")
 pcall(function()
     targetGuiParent = (typeof(gethui) == "function" and gethui()) or CoreGui 
@@ -14,9 +15,6 @@ end)
 if targetGuiParent:FindFirstChild(scriptName) then
     targetGuiParent[scriptName]:Destroy()
 end
-
--- Проверенный рабочий ID анимации прыжка/сальто, видимый для всех
-local animId = "rbxassetid://10677242429"
 
 -- === ИНТЕРФЕЙС (GUI) ===
 local ScreenGui = Instance.new("ScreenGui")
@@ -55,7 +53,7 @@ Title.Size = UDim2.new(1, -30, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Text = "Synced Backflip"
+Title.Text = "Perfect Backflip"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -136,39 +134,61 @@ CloseBtn.Activated:Connect(function()
     OpenBtn.Visible = true
 end)
 
--- Функция правильного сальто через стандартный аниматор персонажа
+local isFlipping = false
+
+-- Функция идеального сальто с защитой от спама и багов воздуха
 local function doBackflip()
+    if isFlipping then return end
     local character = player.Character
     if not character then return end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not humanoid or not hrp then return end
 
-    local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then return end
+    -- Проверяем, стоит ли персонаж на земле (защита от прыжков в воздухе)
+    if humanoid.FloorMaterial == Enum.Material.Air then return end
 
-    -- Принудительный прыжок для синхронизации с физикой
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    hrp.Velocity = Vector3.new(hrp.Velocity.X, 38, hrp.Velocity.Z)
+    isFlipping = true
+    humanoid.PlatformStand = true
+    hrp.Velocity = Vector3.new(hrp.Velocity.X, 42, hrp.Velocity.Z)
 
-    local anim = Instance.new("Animation")
-    anim.AnimationId = animId
-    
-    local success, track = pcall(function()
-        return animator:LoadAnimation(anim)
+    local duration = 0.45 -- Скорость выполнения сальто
+    local elapsed = 0
+    local totalRotation = 0
+    local targetRotation = 360
+
+    local connection
+    connection = RunService.RenderStepped:Connect(function(dt)
+        elapsed = elapsed + dt
+        local stepAngle = (dt / duration) * targetRotation
+        totalRotation = totalRotation + stepAngle
+        
+        if elapsed < duration then
+            -- Плавное вращение назад
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(-stepAngle), 0, 0)
+        else
+            -- Выравниваем точно по градусам, чтобы персонаж не пал набок
+            local excess = totalRotation - targetRotation
+            if excess > 0 then
+                hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(excess), 0, 0)
+            end
+            
+            connection:Disconnect()
+            humanoid.PlatformStand = false
+            
+            -- Небольшая задержка (кулдаун), чтобы исключить спам-баги
+            task.delay(0.1, function()
+                isFlipping = false
+            end)
+        end
     end)
-    
-    if success and track then
-        track.Priority = Enum.AnimationPriority.Action4
-        track:Play()
-    end
 end
 
 FlipBtn.Activated:Connect(function()
     doBackflip()
 end)
 
--- Бинд на прыжок
+-- Бинд на прыжок с защитой от бесконечного полета
 local keybindEnabled = false
 KeybindBtn.Activated:Connect(function()
     keybindEnabled = not keybindEnabled
