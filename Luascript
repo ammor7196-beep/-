@@ -1,12 +1,11 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 
 -- === АВТО-УДАЛЕНИЕ СТАРОЙ КОПИИ ===
-local scriptName = "DeltaBackflipGui_v1"
+local scriptName = "DeltaBackflipGui_v3"
 local targetGuiParent = player:FindFirstChild("PlayerGui")
 pcall(function()
     targetGuiParent = (typeof(gethui) == "function" and gethui()) or CoreGui 
@@ -16,15 +15,12 @@ if targetGuiParent:FindFirstChild(scriptName) then
     targetGuiParent[scriptName]:Destroy()
 end
 
--- ID анимаций бэкфлипа (сальто назад) в Roblox
--- Пробуем несколько популярных рабочих ID, если один заблокирован или не работает
+-- Рабочие ID анимаций сальто
 local backflipIds = {
-    "rbxassetid://10677242429", -- Популярный бэкфлип
-    "rbxassetid://7489467642",  -- Альтернативный вариант
-    "rbxassetid://3337994109"   -- Классический флип
+    "rbxassetid://10677242429",
+    "rbxassetid://7489467642",
+    "rbxassetid://3337994109"
 }
-
-local currentAnimTrack = nil
 
 -- === ИНТЕРФЕЙС (GUI) ===
 local ScreenGui = Instance.new("ScreenGui")
@@ -63,7 +59,7 @@ Title.Size = UDim2.new(1, -30, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Text = "Backflip Animation"
+Title.Text = "Backflip (Visible)"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -100,7 +96,7 @@ end
 local FlipBtn = createButton("Сделать Сальто 🤸", 40)
 FlipBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 
-local KeybindBtn = createButton("Бинд на Пробел: ВЫКЛ", 85)
+local KeybindBtn = createButton("Бинд на Прыжок: ВЫКЛ", 85)
 
 local ExitBtn = createButton("Выгрузить меню", 130)
 ExitBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
@@ -144,7 +140,7 @@ CloseBtn.Activated:Connect(function()
     OpenBtn.Visible = true
 end)
 
--- Функция выполнения сальто
+-- Функция сальто с максимальной репликацией для других игроков
 local function doBackflip()
     local character = player.Character
     if not character then return end
@@ -152,26 +148,28 @@ local function doBackflip()
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not humanoid or not hrp then return end
 
-    -- Если уже играет анимация, не спамим
-    if currentAnimTrack and currentAnimTrack.IsPlaying then return end
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if not animator then return end
 
-    local anim = Instance.new("Animation")
-    
-    -- Перебираем ID, пока какой-нибудь не запустится
     for _, id in ipairs(backflipIds) do
+        local anim = Instance.new("Animation")
         anim.AnimationId = id
-        local success, err = pcall(function()
-            local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
-            currentAnimTrack = animator:LoadAnimation(anim)
-            currentAnimTrack.Priority = Enum.AnimationPriority.Action4
-            currentAnimTrack:Play()
+        
+        local success, track = pcall(function()
+            return animator:LoadAnimation(anim)
         end)
-        if success then break end
-    end
-
-    -- Опционально: легкий подброс вверх во время сальто для красоты, если персонаж на земле
-    if humanoid.FloorMaterial ~= Enum.Material.Air then
-        hrp.Velocity = Vector3.new(hrp.Velocity.X, 35, hrp.Velocity.Z)
+        
+        if success and track then
+            -- Выставляем максимальный приоритет, чтобы анимация перебивала стандартные движения
+            track.Priority = Enum.AnimationPriority.Action4
+            track:Play()
+            
+            -- Небольшой импульс вверх, чтобы сальто выглядело динамично у всех
+            if humanoid.FloorMaterial ~= Enum.Material.Air then
+                hrp.Velocity = Vector3.new(hrp.Velocity.X, 38, hrp.Velocity.Z)
+            end
+            break
+        end
     end
 end
 
@@ -179,7 +177,7 @@ FlipBtn.Activated:Connect(function()
     doBackflip()
 end)
 
--- Настройка бинда на прыжок (пробел)
+-- Бинд на прыжок
 local keybindEnabled = false
 KeybindBtn.Activated:Connect(function()
     keybindEnabled = not keybindEnabled
@@ -199,6 +197,5 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 ExitBtn.Activated:Connect(function()
-    if currentAnimTrack then currentAnimTrack:Stop() end
     ScreenGui:Destroy()
 end)
